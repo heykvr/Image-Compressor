@@ -1,0 +1,53 @@
+
+services:
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_USER: venkat
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: image_processing
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:  # This is the FastAPI service
+    build: .
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://venkat:admin@postgres:5432/image_processing
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - processed_images:/app/processed_images
+    depends_on:
+      - redis
+      - postgres
+
+  worker:  # This is the Celery service
+    build: .
+    container_name: celery
+    command: celery -A app.tasks worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://venkat:admin@postgres:5432/image_processing
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - processed_images:/app/processed_images
+    depends_on:
+      - redis
+      - postgres
+
+volumes:
+  redis_data:
+  postgres_data:
+  processed_images:
